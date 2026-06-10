@@ -3,116 +3,145 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>Unity, hands-on — a few interactive explainers</title>
-<meta name="description" content="Tiny interactive demos answering common Unity beginner questions." />
-<meta property="og:title" content="Unity, hands-on" />
-<meta property="og:description" content="Tactile mini-demos for common Unity beginner questions." />
+<title>Game dev, hands-on — interactive explainers from GameDev.tv</title>
+<meta name="description" content="Tactile mini-demos answering common questions across Unity, Unreal, Godot, and Blender." />
+<meta property="og:title" content="Game dev, hands-on" />
+<meta property="og:description" content="Tactile mini-demos for common beginner questions across Unity, Unreal, Godot, and Blender." />
 <meta property="og:type" content="website" />
+<link rel="stylesheet" href="brand.css" />
 <style>
-  :root {
-    --bg: #0e1014;
-    --panel: #161a21;
-    --panel-2: #1f242d;
-    --ink: #e8ecf2;
-    --ink-dim: #9aa3b2;
-    --accent: #4ad6ff;
-    --line: #2a313c;
-  }
-  * { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    line-height: 1.5;
-    padding: 24px 16px;
-    max-width: 560px;
-    margin: 0 auto;
-    -webkit-font-smoothing: antialiased;
-  }
-  h1 {
-    font-size: 26px;
-    margin: 0 0 8px;
-    letter-spacing: -0.01em;
-  }
-  .sub {
-    color: var(--ink-dim);
-    font-size: 14px;
-    margin-bottom: 20px;
-  }
   .card {
     display: block;
     text-decoration: none;
     color: inherit;
     background: var(--panel);
     border: 1px solid var(--line);
-    border-radius: 14px;
-    padding: 18px;
-    margin-bottom: 12px;
-    transition: border-color 0.15s ease, transform 0.1s ease;
+    border-left: 4px solid var(--c-engine);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 10px;
+    transition: transform 0.08s ease, background 0.15s ease;
   }
-  .card:active { transform: scale(0.99); }
-  .card:hover { border-color: var(--accent); }
+  .card:active { transform: translate(2px, 0); }
+  .card:hover { background: var(--panel-2); }
+  .card .row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 2px;
+  }
   .card .tag {
-    display: inline-block;
+    font-family: 'Poppins', sans-serif;
     font-size: 11px;
-    color: var(--accent);
-    letter-spacing: 0.06em;
+    color: var(--c-engine);
+    letter-spacing: 0.08em;
     text-transform: uppercase;
-    margin-bottom: 6px;
+    font-weight: 700;
   }
+  .card .arrow { color: var(--ink-dim); font-size: 18px; }
   .card h2 {
     margin: 0 0 4px;
-    font-size: 18px;
-    letter-spacing: -0.01em;
+    font-size: 17px;
   }
-  .card h2 code {
-    color: var(--accent);
-    font-size: 16px;
-  }
+  .card h2 code { color: var(--c-engine); font-size: 15px; }
   .card p {
     margin: 0;
     color: var(--ink-dim);
-    font-size: 14px;
+    font-size: 13.5px;
   }
-  .card .arrow {
-    float: right;
-    color: var(--ink-dim);
-    margin-left: 8px;
-  }
-  .footer-note {
-    text-align: center;
-    color: var(--ink-dim);
+  .engine-section { margin-bottom: 22px; }
+  .engine-section .engine-label {
+    font-family: 'Poppins', sans-serif;
     font-size: 11px;
-    margin-top: 24px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    margin-bottom: 8px;
+    font-weight: 700;
   }
+  .engine-section.unity   { --c-engine: var(--c-unity); }
+  .engine-section.unreal  { --c-engine: var(--c-unreal); }
+  .engine-section.godot   { --c-engine: var(--c-godot); }
+  .engine-section.blender { --c-engine: var(--c-blender); }
+
+  body { --c-engine: var(--primary-teal); }
+  h1 { font-size: 26px; margin-bottom: 4px; }
+  p.hero { color: var(--ink-dim); font-size: 14px; margin: 0 0 24px; }
 </style>
 </head>
 <body>
 
-<h1>Unity, hands-on.</h1>
-<p class="sub">Every new Unity dev gets stuck on the same three things: frame timing, physics, and smooth motion. Play with the sliders below and all three click in about five minutes. No editor, no install.</p>
+<header class="brand-bar">
+  <a class="brand-mark" href="https://www.gamedev.tv">GameDev<span class="dot">.tv</span></a>
+  <span class="brand-tag">Get Good at Game Dev</span>
+</header>
 
-<a class="card" href="deltatime-demo.html">
-  <span class="arrow">→</span>
-  <div class="tag">Question 01</div>
-  <h2>Why <code>Time.deltaTime</code>?</h2>
-  <p>Same code, different framerates. Watch one cube stutter while the other stays smooth.</p>
-</a>
+<h1>Game dev, hands-on.</h1>
+<p class="hero">Every beginner gets stuck on the same handful of concepts. Drag the sliders below and watch each one click in about five minutes. No editor, no install.</p>
 
-<a class="card" href="rigidbody-demo.html">
-  <span class="arrow">→</span>
-  <div class="tag">Question 02</div>
-  <h2>Tune a <code>Rigidbody</code></h2>
-  <p>Mass, drag, gravity, bounciness. Drop the ball. Try the beach-ball and bowling-ball presets.</p>
-</a>
+<div class="engine-section unity">
+  <div class="engine-label">Unity</div>
+  <a class="card" href="deltatime-demo.html">
+    <div class="row"><span class="tag">Frame timing</span><span class="arrow">→</span></div>
+    <h2>Why <code>Time.deltaTime</code>?</h2>
+    <p>Same code, different framerates. Watch one cube stutter while the other stays smooth.</p>
+  </a>
+  <a class="card" href="rigidbody-demo.html">
+    <div class="row"><span class="tag">Physics</span><span class="arrow">→</span></div>
+    <h2>Tune a <code>Rigidbody</code></h2>
+    <p>Mass, drag, gravity, bounciness. Drop the ball. Try the beach-ball and bowling-ball presets.</p>
+  </a>
+  <a class="card" href="lerp-demo.html">
+    <div class="row"><span class="tag">Motion</span><span class="arrow">→</span></div>
+    <h2><code>Vector3.Lerp</code>, explained</h2>
+    <p>Drag <em>t</em> from 0 to 1. Swap easing curves. See why linear feels robotic and SmoothStep feels right.</p>
+  </a>
+</div>
 
-<a class="card" href="lerp-demo.html">
-  <span class="arrow">→</span>
-  <div class="tag">Question 03</div>
-  <h2><code>Vector3.Lerp</code>, explained</h2>
-  <p>Drag <em>t</em> from 0 to 1. Swap easing curves. See why linear feels robotic and SmoothStep feels right.</p>
-</a>
+<div class="engine-section godot">
+  <div class="engine-label">Godot</div>
+  <a class="card" href="godot-signals-demo.html">
+    <div class="row"><span class="tag">Coming soon</span><span class="arrow">→</span></div>
+    <h2><code>Signals</code> — how nodes talk</h2>
+    <p>Click an emitter, watch every connected node light up. The Godot pattern that confuses every newcomer.</p>
+  </a>
+  <a class="card" href="godot-process-demo.html">
+    <div class="row"><span class="tag">Coming soon</span><span class="arrow">→</span></div>
+    <h2><code>_process</code> vs <code>_physics_process</code></h2>
+    <p>Slide the framerate. See which one drifts and which one stays rock-solid for collisions.</p>
+  </a>
+</div>
 
-<p class="footer-note">Tastes of GameDev.tv's Complete Unity Developer course.</p>
+<div class="engine-section unreal">
+  <div class="engine-label">Unreal</div>
+  <a class="card" href="unreal-pbr-demo.html">
+    <div class="row"><span class="tag">Coming soon</span><span class="arrow">→</span></div>
+    <h2>PBR materials, in your thumb</h2>
+    <p>Metallic, roughness, base color. Three sliders. Watch a chrome sphere become rusted steel become plastic.</p>
+  </a>
+  <a class="card" href="unreal-tick-demo.html">
+    <div class="row"><span class="tag">Coming soon</span><span class="arrow">→</span></div>
+    <h2><code>BeginPlay</code> vs <code>Tick</code></h2>
+    <p>A timeline you can scrub. See exactly when each fires, and why your "BeginPlay" code sometimes runs late.</p>
+  </a>
+</div>
+
+<div class="engine-section blender">
+  <div class="engine-label">Blender</div>
+  <a class="card" href="blender-subdiv-demo.html">
+    <div class="row"><span class="tag">Coming soon</span><span class="arrow">→</span></div>
+    <h2>Subdivision Surface, untangled</h2>
+    <p>Slide the level from 0 to 6. Watch a blocky cube become a smooth sphere. See your poly count explode.</p>
+  </a>
+  <a class="card" href="blender-bevel-demo.html">
+    <div class="row"><span class="tag">Coming soon</span><span class="arrow">→</span></div>
+    <h2>Bevel modifier, demystified</h2>
+    <p>Width and segments. Two sliders that turn a sharp cube into something that catches light like a real object.</p>
+  </a>
+</div>
+
+<p class="footer-note">Tastes of GameDev.tv courses across all four engines.</p>
 
 </body>
 </html>
