@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Unity, hands-on — a few interactive explainers</title>
+<meta name="description" content="Tiny interactive demos answering common Unity beginner questions." />
+<meta property="og:title" content="Unity, hands-on" />
+<meta property="og:description" content="Tactile mini-demos for common Unity beginner questions." />
+<meta property="og:type" content="website" />
+<style>
+  :root {
+    --bg: #0e1014;
+    --panel: #161a21;
+    --panel-2: #1f242d;
+    --ink: #e8ecf2;
+    --ink-dim: #9aa3b2;
+    --accent: #4ad6ff;
+    --line: #2a313c;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.5;
+    padding: 24px 16px;
+    max-width: 560px;
+    margin: 0 auto;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1 {
+    font-size: 26px;
+    margin: 0 0 8px;
+    letter-spacing: -0.01em;
+  }
+  .sub {
+    color: var(--ink-dim);
+    font-size: 14px;
+    margin-bottom: 20px;
+  }
+  .card {
+    display: block;
+    text-decoration: none;
+    color: inherit;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 18px;
+    margin-bottom: 12px;
+    transition: border-color 0.15s ease, transform 0.1s ease;
+  }
+  .card:active { transform: scale(0.99); }
+  .card:hover { border-color: var(--accent); }
+  .card .tag {
+    display: inline-block;
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .card h2 {
+    margin: 0 0 4px;
+    font-size: 18px;
+    letter-spacing: -0.01em;
+  }
+  .card h2 code {
+    color: var(--accent);
+    font-size: 16px;
+  }
+  .card p {
+    margin: 0;
+    color: var(--ink-dim);
+    font-size: 14px;
+  }
+  .card .arrow {
+    float: right;
+    color: var(--ink-dim);
+    margin-left: 8px;
+  }
+  .footer-note {
+    text-align: center;
+    color: var(--ink-dim);
+    font-size: 11px;
+    margin-top: 24px;
+  }
+</style>
+</head>
+<body>
+
+<h1>Unity, hands-on.</h1>
+<p class="sub">Three tactile mini-demos. Drag the sliders. Feel what the engine is doing.</p>
+
+<a class="card" href="deltatime-demo.html">
+  <span class="arrow">→</span>
+  <div class="tag">Question 01</div>
+  <h2>Why <code>Time.deltaTime</code>?</h2>
+  <p>Same code, different framerates. Watch one cube stutter while the other stays smooth.</p>
+</a>
+
+<a class="card" href="rigidbody-demo.html">
+  <span class="arrow">→</span>
+  <div class="tag">Question 02</div>
+  <h2>Tune a <code>Rigidbody</code></h2>
+  <p>Mass, drag, gravity, bounciness. Drop the ball. Try the beach-ball and bowling-ball presets.</p>
+</a>
+
+<a class="card" href="lerp-demo.html">
+  <span class="arrow">→</span>
+  <div class="tag">Question 03</div>
+  <h2><code>Vector3.Lerp</code>, explained</h2>
+  <p>Drag <em>t</em> from 0 to 1. Swap easing curves. See why linear feels robotic and SmoothStep feels right.</p>
+</a>
+
+<p class="footer-note">Tastes of GameDev.tv's Complete Unity Developer course.</p>
+
+</body>
+</html>
