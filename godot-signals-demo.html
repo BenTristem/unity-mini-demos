@@ -1,0 +1,505 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Godot Signals — a 60-second demo</title>
+<meta name="description" content="Fire a signal, watch the listeners react. Connect and disconnect them on the fly." />
+<link rel="stylesheet" href="brand.css" />
+<style>
+  body { --c-engine: var(--c-godot); }
+  canvas { height: 280px; }
+  .stat { font-variant-numeric: tabular-nums; color: var(--ink); }
+  .legend .dot.on { background: var(--lime); }
+  .legend .dot.off { background: var(--ink-dim); }
+  .listener-row { display: flex; gap: 6px; margin-top: 6px; }
+  .listener-row .btn { font-size: 12px; padding: 9px 6px; }
+  .emit-row { margin-bottom: 12px; }
+  .emit-row .btn { width: 100%; padding: 14px; font-size: 16px; }
+  .takeaway .em { color: var(--mustard); font-weight: 700; }
+</style>
+</head>
+<body>
+
+<header class="brand-bar">
+  <a class="brand-mark" href="https://www.gamedev.tv">GameDev<span class="dot">.tv</span></a>
+  <span class="brand-tag">Get Good at Game Dev</span>
+</header>
+
+<h1>Decouple everything with <code style="color:var(--c-engine)">Signals</code></h1>
+<p class="sub">Your enemy dies and somehow needs to tell the UI, the audio system, and the score tracker. Wire them all up by hand? Nope. Godot has a built-in pager system for nodes, and once you get it, you'll never go back.</p>
+
+<div class="stage">
+  <canvas id="cv" width="800" height="560"></canvas>
+  <div class="legend">
+    <div><span class="stat" id="firedStat">signals fired: 0</span></div>
+    <div><span class="stat" id="connStat">listeners: 3/3</span></div>
+    <div><span class="stat" id="rateStat">auto: 0 Hz</span></div>
+  </div>
+</div>
+
+<div class="controls">
+  <div class="emit-row">
+    <button class="btn engine" id="emitBtn">Emit signal — hit.emit(10)</button>
+  </div>
+
+  <div class="slider-block">
+    <div class="label-row">
+      <strong>Listeners connected</strong>
+      <span class="val" id="connLabel">3 / 3</span>
+    </div>
+    <div class="listener-row">
+      <button class="btn primary" data-listener="health">Health Bar</button>
+      <button class="btn primary" data-listener="score">Score</button>
+      <button class="btn primary" data-listener="sfx">SFX</button>
+    </div>
+  </div>
+
+  <div class="slider-block">
+    <div class="label-row">
+      <strong>Auto-fire rate</strong>
+      <span class="val" id="rateLabel">0 Hz</span>
+    </div>
+    <input id="rate" type="range" min="0" max="2" value="0" step="0.1" />
+  </div>
+
+  <div class="action-row">
+    <button class="btn ghost" id="reset">Reset</button>
+  </div>
+</div>
+
+<div class="takeaway">
+  <h3>Why this matters</h3>
+  <ul>
+    <li>The emitter doesn't know who's listening. <span class="em">That's the whole point.</span></li>
+    <li>Connect or disconnect at runtime. Nothing breaks.</li>
+    <li>This is why Godot bakes signals into the language instead of leaving you to wire your own observer pattern.</li>
+  </ul>
+</div>
+
+<details class="code">
+  <summary><span>Show me the GDScript</span></summary>
+<pre><span class="c"># Define a signal on the emitter</span>
+<span class="k">signal</span> hit(damage: <span class="k">int</span>)
+
+<span class="c"># Fire it</span>
+hit.emit(<span class="s">10</span>)
+
+<span class="c"># Connect a listener (Godot 4 syntax)</span>
+$Button.pressed.connect(_on_pressed)
+hit.connect(_on_hit)
+
+<span class="k">func</span> _on_hit(damage: <span class="k">int</span>) -> <span class="k">void</span>:
+    health -= damage</pre>
+</details>
+
+<div class="cta">
+  <p>Signals are the spine of every Godot game.<br/>Learn them properly (plus nodes, scenes, and the Hack n Slash project) in the course.</p>
+  <a href="#" id="ctaLink">Start the Godot course →</a>
+</div>
+
+<p class="footer-note">A taste of GameDev.tv's Godot Hack n Slash Roguelite course.</p>
+
+<script>
+(() => {
+  const cv = document.getElementById('cv');
+  const ctx = cv.getContext('2d');
+  const emitBtn = document.getElementById('emitBtn');
+  const rateSlider = document.getElementById('rate');
+  const rateLabel = document.getElementById('rateLabel');
+  const resetBtn = document.getElementById('reset');
+  const firedStat = document.getElementById('firedStat');
+  const connStat = document.getElementById('connStat');
+  const rateStat = document.getElementById('rateStat');
+  const connLabel = document.getElementById('connLabel');
+  const listenerBtns = document.querySelectorAll('[data-listener]');
+
+  function fitCanvas() {
+    const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+    const cssW = cv.clientWidth;
+    const cssH = cv.clientHeight;
+    cv.width = Math.round(cssW * dpr);
+    cv.height = Math.round(cssH * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  fitCanvas();
+  window.addEventListener('resize', fitCanvas);
+
+  // Brand colors
+  const GODOT = '#484F9A';
+  const GODOT_DARK = '#2d3266';
+  const INK = '#FBF7EA';
+  const DIM = '#88a8b0';
+  const LIME = '#CBFF9A';
+  const MUSTARD = '#FFD756';
+  const RED = '#DA5A61';
+  const PANEL = '#1a4555';
+
+  const listeners = {
+    health: { connected: true, hp: 100, flashUntil: 0 },
+    score:  { connected: true, score: 0, flashUntil: 0 },
+    sfx:    { connected: true, flashUntil: 0 },
+  };
+
+  let signalsFired = 0;
+  let autoRate = 0; // Hz
+  let lastAutoFire = 0;
+  const pulses = []; // { listener, t0, duration }
+  const emitterFlash = { until: 0 };
+
+  function connectedCount() {
+    return Object.values(listeners).filter(l => l.connected).length;
+  }
+
+  function updateLegend() {
+    firedStat.textContent = `signals fired: ${signalsFired}`;
+    const c = connectedCount();
+    connStat.textContent = `listeners: ${c}/3`;
+    connLabel.textContent = `${c} / 3`;
+    rateStat.textContent = `auto: ${autoRate.toFixed(1)} Hz`;
+  }
+
+  function emitSignal() {
+    signalsFired++;
+    emitterFlash.until = performance.now() + 220;
+    const now = performance.now();
+    for (const key of Object.keys(listeners)) {
+      if (listeners[key].connected) {
+        pulses.push({ listener: key, t0: now, duration: 600 });
+      }
+    }
+    updateLegend();
+  }
+
+  function applyHit(key) {
+    const L = listeners[key];
+    L.flashUntil = performance.now() + 280;
+    if (key === 'health') L.hp = Math.max(0, L.hp - 10);
+    if (key === 'score') L.score += 100;
+  }
+
+  function toggleListener(key) {
+    listeners[key].connected = !listeners[key].connected;
+    const btn = document.querySelector(`[data-listener="${key}"]`);
+    btn.classList.toggle('primary', listeners[key].connected);
+    btn.classList.toggle('ghost', !listeners[key].connected);
+    updateLegend();
+  }
+
+  function reset() {
+    listeners.health.connected = true; listeners.health.hp = 100; listeners.health.flashUntil = 0;
+    listeners.score.connected  = true; listeners.score.score = 0; listeners.score.flashUntil = 0;
+    listeners.sfx.connected    = true; listeners.sfx.flashUntil = 0;
+    signalsFired = 0;
+    autoRate = 0;
+    rateSlider.value = 0;
+    rateLabel.textContent = '0 Hz';
+    pulses.length = 0;
+    listenerBtns.forEach(b => { b.classList.add('primary'); b.classList.remove('ghost'); });
+    updateLegend();
+  }
+
+  // Geometry — node positions in CSS pixels
+  function layout() {
+    const w = cv.clientWidth;
+    const h = cv.clientHeight;
+    return {
+      w, h,
+      emitter: { x: w / 2, y: 70, w: 180, h: 60 },
+      listeners: {
+        health: { x: w * 0.18, y: h - 90, w: w * 0.26, h: 60 },
+        score:  { x: w * 0.5,  y: h - 90, w: w * 0.22, h: 60 },
+        sfx:    { x: w * 0.82, y: h - 90, w: w * 0.22, h: 60 },
+      }
+    };
+  }
+
+  function drawNode(x, y, nw, nh, fill, label, sublabel, faded) {
+    const x0 = x - nw / 2;
+    const y0 = y - nh / 2;
+    const r = 8;
+    function rrect(ox, oy, color) {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(x0 + r + ox, y0 + oy);
+      ctx.lineTo(x0 + nw - r + ox, y0 + oy);
+      ctx.quadraticCurveTo(x0 + nw + ox, y0 + oy, x0 + nw + ox, y0 + r + oy);
+      ctx.lineTo(x0 + nw + ox, y0 + nh - r + oy);
+      ctx.quadraticCurveTo(x0 + nw + ox, y0 + nh + oy, x0 + nw - r + ox, y0 + nh + oy);
+      ctx.lineTo(x0 + r + ox, y0 + nh + oy);
+      ctx.quadraticCurveTo(x0 + ox, y0 + nh + oy, x0 + ox, y0 + nh - r + oy);
+      ctx.lineTo(x0 + ox, y0 + r + oy);
+      ctx.quadraticCurveTo(x0 + ox, y0 + oy, x0 + r + ox, y0 + oy);
+      ctx.fill();
+    }
+    // hard-offset shadow (no blur per brand)
+    rrect(3, 0, 'rgba(0,0,0,0.45)');
+    ctx.globalAlpha = faded ? 0.35 : 1;
+    rrect(0, 0, fill);
+    ctx.globalAlpha = 1;
+
+    ctx.fillStyle = INK;
+    ctx.globalAlpha = faded ? 0.5 : 1;
+    ctx.font = '700 14px Poppins, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, x, sublabel ? y - 9 : y);
+    if (sublabel) {
+      ctx.font = '600 12px Poppins, system-ui, sans-serif';
+      ctx.fillStyle = INK;
+      ctx.fillText(sublabel, x, y + 10);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawHealthBar(x, y, nw, nh, hp, faded, flashing) {
+    const x0 = x - nw / 2;
+    const y0 = y - nh / 2;
+    const r = 8;
+    function rrect(ox, oy, color) {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(x0 + r + ox, y0 + oy);
+      ctx.lineTo(x0 + nw - r + ox, y0 + oy);
+      ctx.quadraticCurveTo(x0 + nw + ox, y0 + oy, x0 + nw + ox, y0 + r + oy);
+      ctx.lineTo(x0 + nw + ox, y0 + nh - r + oy);
+      ctx.quadraticCurveTo(x0 + nw + ox, y0 + nh + oy, x0 + nw - r + ox, y0 + nh + oy);
+      ctx.lineTo(x0 + r + ox, y0 + nh + oy);
+      ctx.quadraticCurveTo(x0 + ox, y0 + nh + oy, x0 + ox, y0 + nh - r + oy);
+      ctx.lineTo(x0 + ox, y0 + r + oy);
+      ctx.quadraticCurveTo(x0 + ox, y0 + oy, x0 + r + ox, y0 + oy);
+      ctx.fill();
+    }
+    rrect(3, 0, 'rgba(0,0,0,0.45)');
+    ctx.globalAlpha = faded ? 0.35 : 1;
+    rrect(0, 0, PANEL);
+
+    // health fill
+    const pad = 8;
+    const barW = (nw - pad * 2) * (hp / 100);
+    const barH = 14;
+    const bx = x0 + pad;
+    const by = y0 + nh - pad - barH;
+    ctx.fillStyle = flashing ? MUSTARD : (hp > 30 ? LIME : RED);
+    ctx.fillRect(bx, by, Math.max(0, barW), barH);
+    // bar outline
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(bx, by, nw - pad * 2, barH);
+
+    ctx.fillStyle = INK;
+    ctx.font = '700 13px Poppins, system-ui, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText('Health Bar', x0 + pad, y0 + pad);
+    ctx.font = '600 11px Poppins, system-ui, sans-serif';
+    ctx.fillStyle = DIM;
+    ctx.fillText(`hp: ${hp}`, x0 + pad, y0 + pad + 16);
+    ctx.globalAlpha = 1;
+  }
+
+  function drawSFX(x, y, nw, nh, faded, flashing) {
+    const x0 = x - nw / 2;
+    const y0 = y - nh / 2;
+    const r = 8;
+    function rrect(ox, oy, color) {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(x0 + r + ox, y0 + oy);
+      ctx.lineTo(x0 + nw - r + ox, y0 + oy);
+      ctx.quadraticCurveTo(x0 + nw + ox, y0 + oy, x0 + nw + ox, y0 + r + oy);
+      ctx.lineTo(x0 + nw + ox, y0 + nh - r + oy);
+      ctx.quadraticCurveTo(x0 + nw + ox, y0 + nh + oy, x0 + nw - r + ox, y0 + nh + oy);
+      ctx.lineTo(x0 + r + ox, y0 + nh + oy);
+      ctx.quadraticCurveTo(x0 + ox, y0 + nh + oy, x0 + ox, y0 + nh - r + oy);
+      ctx.lineTo(x0 + ox, y0 + r + oy);
+      ctx.quadraticCurveTo(x0 + ox, y0 + oy, x0 + r + ox, y0 + oy);
+      ctx.fill();
+    }
+    rrect(3, 0, 'rgba(0,0,0,0.45)');
+    ctx.globalAlpha = faded ? 0.35 : 1;
+    rrect(0, 0, PANEL);
+
+    // speaker circle
+    const cx = x;
+    const cy = y + 4;
+    const rad = 14;
+    ctx.fillStyle = flashing ? MUSTARD : GODOT;
+    ctx.beginPath();
+    ctx.arc(cx, cy, rad, 0, Math.PI * 2);
+    ctx.fill();
+    // sound waves when flashing
+    if (flashing) {
+      ctx.strokeStyle = MUSTARD;
+      ctx.lineWidth = 2;
+      for (let i = 1; i <= 2; i++) {
+        ctx.beginPath();
+        ctx.arc(cx, cy, rad + i * 6, -0.6, 0.6);
+        ctx.stroke();
+      }
+    }
+
+    ctx.fillStyle = INK;
+    ctx.font = '700 13px Poppins, system-ui, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText('SFX', x0 + 10, y0 + 8);
+    ctx.globalAlpha = 1;
+  }
+
+  function drawScore(x, y, nw, nh, score, faded, flashing) {
+    const x0 = x - nw / 2;
+    const y0 = y - nh / 2;
+    const r = 8;
+    function rrect(ox, oy, color) {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(x0 + r + ox, y0 + oy);
+      ctx.lineTo(x0 + nw - r + ox, y0 + oy);
+      ctx.quadraticCurveTo(x0 + nw + ox, y0 + oy, x0 + nw + ox, y0 + r + oy);
+      ctx.lineTo(x0 + nw + ox, y0 + nh - r + oy);
+      ctx.quadraticCurveTo(x0 + nw + ox, y0 + nh + oy, x0 + nw - r + ox, y0 + nh + oy);
+      ctx.lineTo(x0 + r + ox, y0 + nh + oy);
+      ctx.quadraticCurveTo(x0 + ox, y0 + nh + oy, x0 + ox, y0 + nh - r + oy);
+      ctx.lineTo(x0 + ox, y0 + r + oy);
+      ctx.quadraticCurveTo(x0 + ox, y0 + oy, x0 + r + ox, y0 + oy);
+      ctx.fill();
+    }
+    rrect(3, 0, 'rgba(0,0,0,0.45)');
+    ctx.globalAlpha = faded ? 0.35 : 1;
+    rrect(0, 0, PANEL);
+
+    ctx.fillStyle = INK;
+    ctx.font = '700 13px Poppins, system-ui, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText('Score', x0 + 10, y0 + 8);
+
+    ctx.fillStyle = flashing ? MUSTARD : LIME;
+    ctx.font = '800 20px Poppins, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(String(score), x, y + 8);
+    ctx.globalAlpha = 1;
+  }
+
+  function drawConnection(from, to, connected, t) {
+    if (!connected) return;
+    // dashed/solid line
+    ctx.strokeStyle = 'rgba(203,255,154,0.35)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(from.x, from.y);
+    ctx.lineTo(to.x, to.y);
+    ctx.stroke();
+  }
+
+  function drawPulse(from, to, progress) {
+    const px = from.x + (to.x - from.x) * progress;
+    const py = from.y + (to.y - from.y) * progress;
+    // hard-offset shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.beginPath();
+    ctx.arc(px + 3, py, 7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = MUSTARD;
+    ctx.beginPath();
+    ctx.arc(px, py, 7, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function draw(now) {
+    const L = layout();
+    ctx.clearRect(0, 0, L.w, L.h);
+
+    // grid / background hint
+    ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+    ctx.lineWidth = 1;
+    for (let gy = 40; gy < L.h; gy += 40) {
+      ctx.beginPath();
+      ctx.moveTo(0, gy);
+      ctx.lineTo(L.w, gy);
+      ctx.stroke();
+    }
+
+    // connections
+    const emitterAnchor = { x: L.emitter.x, y: L.emitter.y + L.emitter.h / 2 };
+    for (const key of ['health', 'score', 'sfx']) {
+      const ln = L.listeners[key];
+      const anchor = { x: ln.x, y: ln.y - ln.h / 2 };
+      drawConnection(emitterAnchor, anchor, listeners[key].connected, now);
+    }
+
+    // emitter node
+    const flashE = now < emitterFlash.until;
+    drawNode(
+      L.emitter.x, L.emitter.y, L.emitter.w, L.emitter.h,
+      flashE ? MUSTARD : GODOT,
+      'Button (Emitter)', 'signal hit(damage)',
+      false
+    );
+
+    // listeners
+    {
+      const ln = L.listeners.health;
+      drawHealthBar(ln.x, ln.y, ln.w, ln.h, listeners.health.hp, !listeners.health.connected, now < listeners.health.flashUntil);
+    }
+    {
+      const ln = L.listeners.score;
+      drawScore(ln.x, ln.y, ln.w, ln.h, listeners.score.score, !listeners.score.connected, now < listeners.score.flashUntil);
+    }
+    {
+      const ln = L.listeners.sfx;
+      drawSFX(ln.x, ln.y, ln.w, ln.h, !listeners.sfx.connected, now < listeners.sfx.flashUntil);
+    }
+
+    // pulses (drawn on top of lines)
+    for (let i = pulses.length - 1; i >= 0; i--) {
+      const p = pulses[i];
+      const progress = (now - p.t0) / p.duration;
+      if (progress >= 1) {
+        applyHit(p.listener);
+        pulses.splice(i, 1);
+        continue;
+      }
+      const ln = L.listeners[p.listener];
+      const target = { x: ln.x, y: ln.y - ln.h / 2 };
+      drawPulse(emitterAnchor, target, progress);
+    }
+  }
+
+  function loop(now) {
+    // auto-fire
+    if (autoRate > 0) {
+      const interval = 1000 / autoRate;
+      if (now - lastAutoFire >= interval) {
+        emitSignal();
+        lastAutoFire = now;
+      }
+    }
+    draw(now);
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  emitBtn.addEventListener('click', emitSignal);
+
+  rateSlider.addEventListener('input', e => {
+    autoRate = +e.target.value;
+    rateLabel.textContent = `${autoRate.toFixed(1)} Hz`;
+    lastAutoFire = performance.now();
+    updateLegend();
+  });
+
+  listenerBtns.forEach(b => {
+    b.addEventListener('click', () => toggleListener(b.dataset.listener));
+  });
+
+  resetBtn.addEventListener('click', reset);
+
+  updateLegend();
+})();
+</script>
+</body>
+</html>

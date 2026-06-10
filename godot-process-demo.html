@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>_process vs _physics_process — a 60-second Godot demo</title>
+<meta name="description" content="Drop two balls onto a wall. Watch one tunnel through at low FPS, the other never does." />
+<link rel="stylesheet" href="brand.css" />
+<style>
+  body { --c-engine: var(--c-godot); }
+  canvas { height: 280px; }
+  .stat { font-variant-numeric: tabular-nums; color: var(--ink); }
+  .legend { flex-wrap: wrap; row-gap: 6px; }
+  .legend .col { flex: 1 1 45%; min-width: 130px; }
+  .legend .dot.proc { background: var(--sandy); }
+  .legend .dot.phys { background: var(--turquoise); }
+  .legend .tunnels { color: var(--c-unreal); font-weight: 700; }
+  .takeaway code { color: var(--mustard); }
+  .takeaway .em { color: var(--c-unreal); font-weight: 700; }
+  .preset-row .btn { min-width: 64px; font-size: 12px; padding: 9px 6px; }
+  .bad-line { background: rgba(218,90,97,0.12); border-left: 2px solid var(--c-unreal); padding-left: 8px; margin-left: -10px; }
+  .good-line { background: rgba(203,255,154,0.12); border-left: 2px solid var(--lime); padding-left: 8px; margin-left: -10px; }
+</style>
+</head>
+<body>
+
+<header class="brand-bar">
+  <a class="brand-mark" href="https://www.gamedev.tv">GameDev<span class="dot">.tv</span></a>
+  <span class="brand-tag">Get Good at Game Dev</span>
+</header>
+
+<h1>Stop tunneling through walls with <code style="color:var(--c-engine)">_physics_process</code></h1>
+<p class="sub">Two balls fall toward a wall. One uses <code>_process</code>, one uses <code>_physics_process</code>. Drop the FPS and watch one of them straight up phase through the floor like a ghost. That's a collision bug, not a feature.</p>
+
+<div class="stage">
+  <canvas id="cv" width="800" height="560"></canvas>
+  <div class="legend">
+    <div class="col"><span class="dot proc"></span> <code>_process</code> <span class="stat" id="procFps">— fps</span> · <span class="tunnels" id="procTunnels">tunneled: 0</span></div>
+    <div class="col" style="text-align:right"><span class="dot phys"></span> <code>_physics_process</code> <span class="stat" id="physFps">— Hz</span> · <span class="tunnels" id="physTunnels">tunneled: 0</span></div>
+  </div>
+</div>
+
+<div class="controls">
+  <div class="slider-block">
+    <div class="label-row">
+      <strong>_process FPS</strong>
+      <span class="val" id="procLabel">60 FPS</span>
+    </div>
+    <input id="procFpsSlider" type="range" min="5" max="240" value="60" step="1" />
+  </div>
+  <div class="slider-block">
+    <div class="label-row">
+      <strong>Physics tick rate</strong>
+      <span class="val" id="physLabel">60 Hz</span>
+    </div>
+    <input id="physHzSlider" type="range" min="10" max="120" value="60" step="1" />
+  </div>
+  <div class="preset-row">
+    <button class="btn primary" data-preset="60-60">60 / 60</button>
+    <button class="btn" data-preset="10-60">10 / 60</button>
+    <button class="btn" data-preset="60-10">60 / 10</button>
+    <button class="btn" data-preset="240-60">240 / 60</button>
+  </div>
+  <div class="action-row">
+    <button class="btn ghost" id="reset">↺ Drop again</button>
+    <button class="btn ghost" id="pause">⏸ Pause</button>
+  </div>
+</div>
+
+<div class="takeaway">
+  <h3>What you're watching</h3>
+  <ul>
+    <li><code>_process(delta)</code>: runs every visual frame. <code>delta</code> varies. Use for <strong>rendering</strong>, animations, smooth follow-cameras.</li>
+    <li><code>_physics_process(delta)</code>: fixed timestep (60Hz by default). <code>delta</code> is constant. Use for <strong>physics, collisions, anything that needs determinism</strong>.</li>
+    <li>Move your <code>velocity += GRAVITY * delta</code> and <code>move_and_slide()</code> into <code>_physics_process</code>.</li>
+    <li><span class="em">Low FPS won't break your physics.</span> Low <em>physics tick rate</em> will.</li>
+  </ul>
+</div>
+
+<details class="code">
+  <summary><span>Show me the GDScript</span></summary>
+<pre><span class="k">extends</span> CharacterBody2D
+
+<span class="k">const</span> GRAVITY := <span class="s">980.0</span>
+
+<span class="c"># WRONG: runs every render frame, delta varies wildly</span>
+<span class="k">func</span> _process(delta: <span class="k">float</span>) -> <span class="k">void</span>:
+<span class="bad-line">    velocity.y += GRAVITY * delta
+    move_and_slide()  <span class="c"># can miss collisions at low FPS</span></span>
+
+<span class="c"># RIGHT: runs at fixed timestep, delta is constant</span>
+<span class="k">func</span> _physics_process(delta: <span class="k">float</span>) -> <span class="k">void</span>:
+<span class="good-line">    velocity.y += GRAVITY * delta
+    move_and_slide()</span></pre>
+</details>
+
+<div class="cta">
+  <p>Frame timing is one of the things every Godot beginner gets wrong once. Get the rest right the first time in the course.</p>
+  <a href="#" id="ctaLink">Start the Godot course →</a>
+</div>
+
+<p class="footer-note">A taste of GameDev.tv's Godot Hack n Slash Roguelite course.</p>
+
+<script>
+(() => {
+  const cv = document.getElementById('cv');
+  const ctx = cv.getContext('2d');
+  const procSlider = document.getElementById('procFpsSlider');
+  const physSlider = document.getElementById('physHzSlider');
+  const procLabel = document.getElementById('procLabel');
+  const physLabel = document.getElementById('physLabel');
+  const procFpsEl = document.getElementById('procFps');
+  const physFpsEl = document.getElementById('physFps');
+  const procTunnelsEl = document.getElementById('procTunnels');
+  const physTunnelsEl = document.getElementById('physTunnels');
+  const resetBtn = document.getElementById('reset');
+  const pauseBtn = document.getElementById('pause');
+  const presets = document.querySelectorAll('.preset-row .btn');
+
+  function fitCanvas() {
+    const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+    const cssW = cv.clientWidth;
+    const cssH = cv.clientHeight;
+    cv.width = Math.round(cssW * dpr);
+    cv.height = Math.round(cssH * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  fitCanvas();
+  window.addEventListener('resize', fitCanvas);
+
+  // World units: vertical play area is 100 tall.
+  const WORLD_H = 100;
+  const GRAVITY = 220; // units / s^2
+  const WALL_Y = 70;   // wall band center
+  const WALL_THICK = 3;
+  const BALL_R = 2.2;
+  const FLOOR_Y = 96;
+
+  let procTargetFPS = 60;
+  let physTargetHz  = 60;
+  let paused = false;
+
+  function makeBall() {
+    return {
+      y: 8,
+      vy: 0,
+      stopped: false,
+      tunnels: 0,
+      trail: [],
+      flash: 0,
+    };
+  }
+
+  const state = {
+    proc: makeBall(),
+    phys: makeBall(),
+    procLastStep: performance.now(),
+    physLastStep: performance.now(),
+    procSamples: [],
+    physSamples: [],
+    procActual: 0,
+    physActual: 0,
+  };
+
+  function reset() {
+    state.proc = makeBall();
+    state.phys = makeBall();
+    state.procLastStep = performance.now();
+    state.physLastStep = performance.now();
+    state.procSamples = [];
+    state.physSamples = [];
+  }
+
+  // Step a ball by dt seconds, with substep collision check against the wall.
+  // The integration is the same; the only difference between proc and phys
+  // is how often it's called.
+  function stepBall(b, dt) {
+    if (b.stopped) return;
+    const prevY = b.y;
+    b.vy += GRAVITY * dt;
+    b.y += b.vy * dt;
+
+    // Trail sample (push current position; cap length).
+    b.trail.push(b.y);
+    if (b.trail.length > 24) b.trail.shift();
+
+    // Wall is at WALL_Y, thickness WALL_THICK.
+    // If the ball crossed the wall band in this single step without us
+    // catching it inside the band, that's a tunnel.
+    const wallTop = WALL_Y - WALL_THICK / 2;
+    const wallBot = WALL_Y + WALL_THICK / 2;
+
+    const wasAbove = prevY + BALL_R <= wallTop + 0.001;
+    const nowBelow = b.y - BALL_R >= wallBot - 0.001;
+
+    if (wasAbove && nowBelow) {
+      // Skipped right through. Tunneling event.
+      b.tunnels++;
+      b.flash = 1.0;
+      // Let it keep falling to the floor (so the bug is visible).
+    } else if (wasAbove && b.y + BALL_R >= wallTop) {
+      // Caught the wall this step. Land on top.
+      b.y = wallTop - BALL_R;
+      b.vy = 0;
+      b.stopped = true;
+    }
+
+    if (b.y > FLOOR_Y - BALL_R) {
+      b.y = FLOOR_Y - BALL_R;
+      b.vy = 0;
+      b.stopped = true;
+    }
+
+    if (b.flash > 0) b.flash = Math.max(0, b.flash - dt * 1.5);
+  }
+
+  // Drawing
+  const PROC_COLOR = '#FC9E4F';      // sandy
+  const PHYS_COLOR = '#73E3C5';      // turquoise
+  const WALL_COLOR = '#48ACF0';      // cool sky
+  const FLOOR_COLOR = 'rgba(255,255,255,0.06)';
+  const FLASH_COLOR = '#DA5A61';     // cold red
+  const INK_DIM = 'rgba(136,168,176,0.6)';
+
+  function drawBall(cx, cy, r, color, flash) {
+    // Hard offset shadow (no blur).
+    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    ctx.beginPath();
+    ctx.arc(cx + 3, cy, r, 0, Math.PI * 2);
+    ctx.fill();
+    // Flash ring on tunnel.
+    if (flash > 0) {
+      ctx.strokeStyle = FLASH_COLOR;
+      ctx.lineWidth = 3;
+      ctx.globalAlpha = flash;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r + 4, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function drawTrail(trail, laneX, color, yScale) {
+    for (let i = 0; i < trail.length; i++) {
+      const alpha = (i + 1) / trail.length * 0.5;
+      ctx.fillStyle = color;
+      ctx.globalAlpha = alpha;
+      const py = trail[i] * yScale;
+      ctx.beginPath();
+      ctx.arc(laneX, py, 1.6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function draw() {
+    const w = cv.clientWidth;
+    const h = cv.clientHeight;
+    ctx.clearRect(0, 0, w, h);
+
+    const yScale = h / WORLD_H;
+    const procX = w * 0.30;
+    const physX = w * 0.70;
+
+    // Column labels.
+    ctx.fillStyle = INK_DIM;
+    ctx.font = '600 11px Poppins, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('_process', procX, 16);
+    ctx.fillText('_physics_process', physX, 16);
+
+    // Divider.
+    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(w / 2, 24);
+    ctx.lineTo(w / 2, h - 8);
+    ctx.stroke();
+
+    // Wall.
+    const wallY = WALL_Y * yScale;
+    const wallThickPx = WALL_THICK * yScale;
+    // Hard offset shadow under wall.
+    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    ctx.fillRect(8, wallY - wallThickPx / 2 + 3, w - 16, wallThickPx);
+    ctx.fillStyle = WALL_COLOR;
+    ctx.fillRect(8, wallY - wallThickPx / 2, w - 16, wallThickPx);
+
+    // Floor line.
+    const floorY = FLOOR_Y * yScale;
+    ctx.strokeStyle = FLOOR_COLOR;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 4]);
+    ctx.beginPath();
+    ctx.moveTo(8, floorY);
+    ctx.lineTo(w - 8, floorY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Trails.
+    drawTrail(state.proc.trail, procX, PROC_COLOR, yScale);
+    drawTrail(state.phys.trail, physX, PHYS_COLOR, yScale);
+
+    // Balls.
+    const ballPx = Math.max(8, BALL_R * yScale);
+    drawBall(procX, state.proc.y * yScale, ballPx, PROC_COLOR, state.proc.flash);
+    drawBall(physX, state.phys.y * yScale, ballPx, PHYS_COLOR, state.phys.flash);
+
+    // "Tunneled!" tag if a ball is currently flashing.
+    ctx.font = '700 11px Poppins, system-ui, sans-serif';
+    ctx.fillStyle = FLASH_COLOR;
+    if (state.proc.flash > 0.2) {
+      ctx.globalAlpha = state.proc.flash;
+      ctx.fillText('TUNNELED!', procX, state.proc.y * yScale + ballPx + 14);
+      ctx.globalAlpha = 1;
+    }
+    if (state.phys.flash > 0.2) {
+      ctx.globalAlpha = state.phys.flash;
+      ctx.fillText('TUNNELED!', physX, state.phys.y * yScale + ballPx + 14);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  function updateStatsUI() {
+    procFpsEl.textContent  = `${state.procActual} fps`;
+    physFpsEl.textContent  = `${state.physActual} Hz`;
+    procTunnelsEl.textContent = `tunneled: ${state.proc.tunnels}`;
+    physTunnelsEl.textContent = `tunneled: ${state.phys.tunnels}`;
+  }
+
+  function loop(now) {
+    if (!paused) {
+      const procInterval = 1000 / procTargetFPS;
+      const physInterval = 1000 / physTargetHz;
+
+      // _process tick: rAF-gated, dt is whatever elapsed.
+      if (now - state.procLastStep >= procInterval) {
+        const dt = (now - state.procLastStep) / 1000;
+        stepBall(state.proc, dt);
+        state.procSamples.push(now);
+        state.procLastStep = now;
+      }
+
+      // _physics_process tick: fixed-rate, dt is constant 1/Hz.
+      // Catch up if we fell behind so the rate is honest.
+      let safety = 8;
+      while (now - state.physLastStep >= physInterval && safety-- > 0) {
+        const dt = physInterval / 1000;
+        stepBall(state.phys, dt);
+        state.physSamples.push(now);
+        state.physLastStep += physInterval;
+      }
+      // If we burned the safety budget, snap forward.
+      if (safety < 0) state.physLastStep = now;
+
+      // FPS rollup over the last second.
+      const cutoff = now - 1000;
+      while (state.procSamples.length && state.procSamples[0] < cutoff) state.procSamples.shift();
+      while (state.physSamples.length && state.physSamples[0] < cutoff) state.physSamples.shift();
+      state.procActual = state.procSamples.length;
+      state.physActual = state.physSamples.length;
+
+      updateStatsUI();
+    }
+    draw();
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame((t) => {
+    state.procLastStep = t;
+    state.physLastStep = t;
+    loop(t);
+  });
+
+  function setProcFPS(v) {
+    procTargetFPS = Math.max(5, Math.min(240, v|0));
+    procSlider.value = procTargetFPS;
+    procLabel.textContent = `${procTargetFPS} FPS`;
+    syncPresetHighlight();
+  }
+  function setPhysHz(v) {
+    physTargetHz = Math.max(10, Math.min(120, v|0));
+    physSlider.value = physTargetHz;
+    physLabel.textContent = `${physTargetHz} Hz`;
+    syncPresetHighlight();
+  }
+  function syncPresetHighlight() {
+    presets.forEach(b => {
+      const [p, h] = b.dataset.preset.split('-').map(Number);
+      b.classList.toggle('primary', p === procTargetFPS && h === physTargetHz);
+    });
+  }
+
+  procSlider.addEventListener('input', e => setProcFPS(+e.target.value));
+  physSlider.addEventListener('input', e => setPhysHz(+e.target.value));
+  presets.forEach(b => b.addEventListener('click', () => {
+    const [p, h] = b.dataset.preset.split('-').map(Number);
+    setProcFPS(p);
+    setPhysHz(h);
+    reset();
+  }));
+
+  resetBtn.addEventListener('click', reset);
+  pauseBtn.addEventListener('click', () => {
+    paused = !paused;
+    pauseBtn.textContent = paused ? '▶ Play' : '⏸ Pause';
+    if (!paused) {
+      state.procLastStep = performance.now();
+      state.physLastStep = performance.now();
+    }
+  });
+
+  setProcFPS(60);
+  setPhysHz(60);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>BeginPlay vs Tick — a 60-second Unreal demo</title>
+<meta name="description" content="Spawn an actor, watch BeginPlay fire once and Tick hammer every frame." />
+<link rel="stylesheet" href="brand.css" />
+<style>
+  body { --c-engine: var(--c-unreal); }
+  canvas { height: 260px; }
+  .legend .dot.bp { background: var(--c-unreal); }
+  .legend .dot.tk { background: var(--ivory); }
+  .legend .dot.ep { background: var(--sandy); }
+  .legend .dot.cn { background: #88a8b0; }
+  .legend > div { display:flex; align-items:center; gap:4px; }
+  .toggle-row { display:flex; gap:8px; margin-top:10px; }
+  .takeaway .em { color: var(--c-unreal); font-weight: 700; }
+  .status-dead { color: var(--ink-dim); }
+</style>
+</head>
+<body>
+
+<header class="brand-bar">
+  <a class="brand-mark" href="https://www.gamedev.tv">GameDev<span class="dot">.tv</span></a>
+  <span class="brand-tag">Get Good at Game Dev</span>
+</header>
+
+<h1><code style="color:var(--c-engine)">BeginPlay</code> vs <code style="color:var(--c-engine)">Tick</code></h1>
+<p class="sub">Every Unreal actor has a lifecycle. BeginPlay fires once. Tick fires every frame, forever, until something stops it. Spawn an actor below and watch the event timeline tell the story.</p>
+
+<div class="stage">
+  <canvas id="cv" width="800" height="520"></canvas>
+  <div class="legend">
+    <div><span class="dot cn"></span> <span id="legFrame">Frame: 0</span></div>
+    <div><span class="dot bp"></span> <span id="legBP">BeginPlay: 0</span></div>
+    <div><span class="dot tk"></span> <span id="legTick">Tick: 0</span></div>
+    <div><span class="dot ep"></span> <span id="legEP">EndPlay: 0</span></div>
+  </div>
+</div>
+
+<div class="controls">
+  <div class="slider-block">
+    <div class="label-row">
+      <strong>Simulated frame rate</strong>
+      <span class="val" id="fpsLabel">30 FPS</span>
+    </div>
+    <input id="fps" type="range" min="1" max="120" value="30" step="1" />
+  </div>
+
+  <div class="action-row">
+    <button class="btn engine" id="spawn">+ Spawn actor</button>
+    <button class="btn" id="destroy">× Destroy actor</button>
+  </div>
+  <div class="action-row">
+    <button class="btn ghost" id="pause">⏸ Pause</button>
+    <button class="btn ghost" id="reset">↺ Reset</button>
+  </div>
+
+  <div class="toggle-row">
+    <button class="btn primary" id="tickToggle">Tick enabled ✓</button>
+  </div>
+</div>
+
+<div class="takeaway">
+  <h3>What you're watching</h3>
+  <ul>
+    <li><span class="em">BeginPlay</span> runs ONCE when the actor is fully in the level. Do your initial setup here, not in the constructor.</li>
+    <li><span class="em">Tick</span> runs EVERY frame. Keep it lean. It's the easiest place to nuke your frame rate.</li>
+    <li>Tick can be <strong>disabled</strong> for static actors with <code>PrimaryActorTick.bCanEverTick = false;</code>. Forgetting this is the #1 reason Tick "doesn't fire".</li>
+    <li>The constructor runs in the editor too. BeginPlay only runs at play time. That difference confuses every newcomer once.</li>
+  </ul>
+</div>
+
+<details class="code">
+  <summary><span>Show me the Unreal C++</span></summary>
+<pre>AMyActor::AMyActor()
+{
+<span class="c">    // Constructor runs in editor AND at runtime.</span>
+<span class="c">    // Forget this line and Tick is silent forever.</span>
+    PrimaryActorTick.bCanEverTick = <span class="k">true</span>;
+}
+
+<span class="k">void</span> AMyActor::BeginPlay()
+{
+    Super::BeginPlay();
+    UE_LOG(LogTemp, Warning, TEXT(<span class="s">"BeginPlay fired once."</span>));
+<span class="c">    // initial state setup goes here</span>
+}
+
+<span class="k">void</span> AMyActor::Tick(<span class="k">float</span> DeltaTime)
+{
+    Super::Tick(DeltaTime);
+<span class="c">    // runs every frame — keep this lean</span>
+}
+
+<span class="k">void</span> AMyActor::EndPlay(<span class="k">const</span> EEndPlayReason::Type Reason)
+{
+    Super::EndPlay(Reason);
+<span class="c">    // cleanup, save state, etc.</span>
+}</pre>
+</details>
+
+<div class="cta">
+  <p>Actor lifecycle is the bedrock of Unreal C++.<br/>Learn it (and the gotchas) in the course.</p>
+  <a href="#" id="ctaLink">Start the Unreal Beginner Course →</a>
+</div>
+
+<p class="footer-note">A taste of GameDev.tv's Unreal Beginner C++ Coding Program.</p>
+
+<script>
+(() => {
+  const cv = document.getElementById('cv');
+  const ctx = cv.getContext('2d');
+  const fpsSlider = document.getElementById('fps');
+  const fpsLabel = document.getElementById('fpsLabel');
+  const spawnBtn = document.getElementById('spawn');
+  const destroyBtn = document.getElementById('destroy');
+  const pauseBtn = document.getElementById('pause');
+  const resetBtn = document.getElementById('reset');
+  const tickToggle = document.getElementById('tickToggle');
+  const legFrame = document.getElementById('legFrame');
+  const legBP = document.getElementById('legBP');
+  const legTick = document.getElementById('legTick');
+  const legEP = document.getElementById('legEP');
+
+  function fitCanvas() {
+    const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+    const cssW = cv.clientWidth;
+    const cssH = cv.clientHeight;
+    cv.width = Math.round(cssW * dpr);
+    cv.height = Math.round(cssH * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  fitCanvas();
+  window.addEventListener('resize', fitCanvas);
+
+  // Brand colors
+  const RED   = '#DA5A61';
+  const IVORY = '#FBF7EA';
+  const SANDY = '#FC9E4F';
+  const GREY  = '#88a8b0';
+  const DIM   = 'rgba(136,168,176,0.55)';
+  const LINE  = 'rgba(255,255,255,0.08)';
+
+  // Simulation state
+  let targetFPS = 30;
+  let paused = false;
+  let tickEnabled = true;
+  let actorAlive = false;
+  let pendingBeginPlay = false; // BeginPlay fires the frame AFTER Construction
+
+  // Counters
+  let frameCount = 0;
+  let bpCount = 0;
+  let tickCount = 0;
+  let epCount = 0;
+
+  // Time window: timeline scrolls left. We store events with their simTime.
+  // simTime advances at 1 unit per simulated frame. Window shows last N frames.
+  let simTime = 0;
+  const WINDOW = 90; // frames visible across the canvas
+  const events = []; // { type: 'construction'|'beginplay'|'tick'|'endplay', t: simTime }
+
+  function pushEvent(type) {
+    events.push({ type, t: simTime });
+    // prune old events outside window (with a buffer)
+    while (events.length && events[0].t < simTime - WINDOW - 5) events.shift();
+  }
+
+  function spawn() {
+    if (actorAlive) return;
+    actorAlive = true;
+    pendingBeginPlay = true;
+    pushEvent('construction');
+    updateLegend();
+  }
+
+  function destroy() {
+    if (!actorAlive) return;
+    actorAlive = false;
+    pendingBeginPlay = false;
+    pushEvent('endplay');
+    epCount++;
+    updateLegend();
+  }
+
+  function reset() {
+    actorAlive = false;
+    pendingBeginPlay = false;
+    frameCount = 0; bpCount = 0; tickCount = 0; epCount = 0;
+    simTime = 0;
+    events.length = 0;
+    updateLegend();
+  }
+
+  function updateLegend() {
+    legFrame.textContent = `Frame: ${frameCount}`;
+    legBP.textContent = `BeginPlay: ${bpCount}`;
+    legTick.textContent = `Tick: ${tickCount}`;
+    legEP.textContent = `EndPlay: ${epCount}`;
+  }
+
+  // Step one simulated frame
+  function stepFrame() {
+    frameCount++;
+    simTime++;
+
+    if (pendingBeginPlay) {
+      pendingBeginPlay = false;
+      pushEvent('beginplay');
+      bpCount++;
+    }
+
+    if (actorAlive && tickEnabled) {
+      pushEvent('tick');
+      tickCount++;
+    }
+
+    updateLegend();
+  }
+
+  // Drawing
+  function timeToX(t, w) {
+    // simTime is "now" at the right edge. older events are further left.
+    const right = w - 16;
+    const left = 16;
+    const span = right - left;
+    const age = simTime - t; // 0 == now
+    return right - (age / WINDOW) * span;
+  }
+
+  function drawTickNotch(x, axisY) {
+    ctx.strokeStyle = IVORY;
+    ctx.globalAlpha = 0.65;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(x, axisY - 6);
+    ctx.lineTo(x, axisY + 6);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  function drawMarker(x, axisY, color, label, big) {
+    // vertical line from label down to axis
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = 0.7;
+    ctx.lineWidth = big ? 2 : 1;
+    ctx.beginPath();
+    ctx.moveTo(x, axisY);
+    ctx.lineTo(x, big ? 44 : 70);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    // marker dot or star
+    if (big) {
+      drawStar(x, 36, 7, color);
+    } else {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(x, 64, 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // label
+    ctx.fillStyle = color;
+    ctx.font = big
+      ? '800 12px Poppins, system-ui, sans-serif'
+      : '600 10px Poppins, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(label, x, big ? 22 : 52);
+  }
+
+  function drawStar(cx, cy, r, color) {
+    // hard offset shadow (no blur)
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    starPath(cx + 2, cy + 2, r);
+    ctx.fill();
+    ctx.fillStyle = color;
+    starPath(cx, cy, r);
+    ctx.fill();
+  }
+  function starPath(cx, cy, r) {
+    ctx.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const a = -Math.PI / 2 + i * Math.PI / 5;
+      const rad = i % 2 === 0 ? r : r * 0.45;
+      const x = cx + Math.cos(a) * rad;
+      const y = cy + Math.sin(a) * rad;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+  }
+
+  function draw() {
+    const w = cv.clientWidth;
+    const h = cv.clientHeight;
+    ctx.clearRect(0, 0, w, h);
+
+    const axisY = h * 0.7;
+
+    // axis line
+    ctx.strokeStyle = LINE;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(8, axisY);
+    ctx.lineTo(w - 8, axisY);
+    ctx.stroke();
+
+    // "now" indicator at right
+    ctx.strokeStyle = RED;
+    ctx.setLineDash([3, 4]);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(w - 16, 10);
+    ctx.lineTo(w - 16, h - 10);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = DIM;
+    ctx.font = '600 10px Poppins, system-ui, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText('now →', w - 20, h - 16);
+    ctx.textAlign = 'left';
+    ctx.fillText('time →', 12, h - 16);
+
+    // axis label
+    ctx.fillStyle = DIM;
+    ctx.font = '600 10px Poppins, system-ui, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('frame timeline', 12, axisY - 8);
+
+    // draw all events in the window
+    for (const ev of events) {
+      const age = simTime - ev.t;
+      if (age > WINDOW) continue;
+      const x = timeToX(ev.t, w);
+      if (x < 4 || x > w - 4) continue;
+
+      if (ev.type === 'tick') {
+        drawTickNotch(x, axisY);
+      } else if (ev.type === 'construction') {
+        drawMarker(x, axisY, GREY, 'Construction', false);
+      } else if (ev.type === 'beginplay') {
+        drawMarker(x, axisY, RED, 'BeginPlay', true);
+      } else if (ev.type === 'endplay') {
+        drawMarker(x, axisY, SANDY, 'EndPlay', false);
+      }
+    }
+
+    // status text bottom
+    ctx.fillStyle = actorAlive ? IVORY : DIM;
+    ctx.font = '700 11px Poppins, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    const statusTxt = actorAlive
+      ? (tickEnabled ? 'Actor alive · ticking' : 'Actor alive · tick disabled')
+      : 'No actor in level';
+    ctx.fillText(statusTxt, w / 2, h - 16);
+  }
+
+  // Loop
+  let lastStep = performance.now();
+  function loop(now) {
+    const interval = 1000 / targetFPS;
+    if (!paused) {
+      // step potentially multiple frames if the browser fell behind, but cap it
+      let steps = 0;
+      while (now - lastStep >= interval && steps < 8) {
+        stepFrame();
+        lastStep += interval;
+        steps++;
+      }
+      // if we somehow drifted way ahead (tab inactive), snap
+      if (now - lastStep > interval * 20) lastStep = now;
+    } else {
+      lastStep = now;
+    }
+    draw();
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame((t) => { lastStep = t; loop(t); });
+
+  // Wire up controls
+  function setFPS(v) {
+    targetFPS = Math.max(1, Math.min(120, v|0));
+    fpsSlider.value = targetFPS;
+    fpsLabel.textContent = `${targetFPS} FPS`;
+  }
+  fpsSlider.addEventListener('input', e => setFPS(+e.target.value));
+
+  spawnBtn.addEventListener('click', spawn);
+  destroyBtn.addEventListener('click', destroy);
+  pauseBtn.addEventListener('click', () => {
+    paused = !paused;
+    pauseBtn.textContent = paused ? '▶ Play' : '⏸ Pause';
+  });
+  resetBtn.addEventListener('click', reset);
+
+  tickToggle.addEventListener('click', () => {
+    tickEnabled = !tickEnabled;
+    if (tickEnabled) {
+      tickToggle.textContent = 'Tick enabled ✓';
+      tickToggle.classList.add('primary');
+    } else {
+      tickToggle.textContent = 'Tick disabled ✗';
+      tickToggle.classList.remove('primary');
+    }
+  });
+
+  setFPS(30);
+  updateLegend();
+})();
+</script>
+</body>
+</html>

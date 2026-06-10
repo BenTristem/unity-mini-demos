@@ -1,0 +1,477 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>The Bevel Modifier — a Blender lighting toy</title>
+<meta name="description" content="Round off your sharp edges. Watch the cube start to catch light like a real thing." />
+<link rel="stylesheet" href="brand.css" />
+<style>
+  body { --c-engine: var(--c-blender); }
+  canvas { height: 320px; }
+  .preset-row .btn { font-size: 12.5px; padding: 9px 6px; }
+  .btn.on { background: var(--c-engine); color: var(--shadow-grey); border-color: var(--c-engine); }
+</style>
+</head>
+<body>
+
+<header class="brand-bar">
+  <a class="brand-mark" href="https://www.gamedev.tv">GameDev<span class="dot">.tv</span></a>
+  <span class="brand-tag">Get Good at Game Dev</span>
+</header>
+
+<h1>The <code style="color:var(--c-engine)">Bevel</code> Modifier</h1>
+<p class="sub">Perfectly sharp edges scream "CG render." Real objects, even the crispest machined ones, catch a sliver of light right on the corner. Bevel is how you get that for almost no cost.</p>
+
+<div class="stage">
+  <canvas id="cv" width="800" height="640"></canvas>
+  <div class="legend">
+    <span id="legendStat">width 0.00 · segs 1 · profile 0.50</span>
+    <span id="hintStat">try a preset →</span>
+  </div>
+</div>
+
+<div class="controls">
+  <div class="preset-row">
+    <button class="btn" data-preset="sharp">⬛ Sharp</button>
+    <button class="btn" data-preset="chamfer">◧ Chamfer</button>
+    <button class="btn" data-preset="rounded">◔ Rounded</button>
+    <button class="btn" data-preset="soft">◉ Soft</button>
+  </div>
+
+  <div class="slider-block">
+    <div class="label-row"><strong>Width</strong><span class="val" id="widthVal">0.00</span></div>
+    <input id="width" type="range" min="0" max="0.5" step="0.01" value="0" />
+  </div>
+  <div class="slider-block">
+    <div class="label-row"><strong>Segments</strong><span class="val" id="segsVal">1</span></div>
+    <input id="segs" type="range" min="1" max="10" step="1" value="1" />
+  </div>
+  <div class="slider-block">
+    <div class="label-row"><strong>Profile</strong><span class="val" id="profileVal">0.50</span></div>
+    <input id="profile" type="range" min="0" max="1" step="0.05" value="0.5" />
+  </div>
+
+  <div class="action-row">
+    <button class="btn engine on" id="hilight">✨ Highlight on bevels</button>
+    <button class="btn ghost" id="reset">↺ Reset</button>
+  </div>
+</div>
+
+<div class="takeaway">
+  <h3>Why bevel everything</h3>
+  <ul>
+    <li><strong>Real objects don't have perfectly sharp edges.</strong> A microscopic bevel is what makes a cube look like a <em>thing</em> instead of a render.</li>
+    <li><code>Width</code> = how far the bevel extends from the edge. Start at <code>0.02</code>–<code>0.05</code> for most game props.</li>
+    <li><code>Segments</code>: <code>1</code> (chamfer) is fine for low-poly. <code>3</code>–<code>4</code> reads as a "machined" edge. Above <code>6</code> is usually invisible at game distances.</li>
+    <li><strong>Bevel modifier</strong> (non-destructive, live-tweakable) beats Edge Bevel (destructive) for almost every workflow.</li>
+  </ul>
+</div>
+
+<details class="code">
+  <summary><span>Show me the Blender setup</span></summary>
+<pre><span class="k">import</span> bpy
+
+obj = bpy.context.active_object
+
+mod = obj.modifiers.new(name=<span class="s">"Bevel"</span>, type=<span class="s">'BEVEL'</span>)
+mod.width        = <span class="s">0.05</span>
+mod.segments     = <span class="s">4</span>
+mod.profile      = <span class="s">0.5</span>
+mod.limit_method = <span class="s">'ANGLE'</span>      <span class="c"># bevel only edges sharper than the angle</span>
+mod.angle_limit  = <span class="s">0.523599</span>     <span class="c"># ~30 degrees</span>
+
+<span class="c"># Shortcut: select the object, press Ctrl+B (in edit mode) for direct bevel,</span>
+<span class="c"># or add the Bevel modifier for non-destructive tweaking.</span></pre>
+</details>
+
+<div class="cta">
+  <p>Bevels are the cheapest win in 3D.<br/>Learn them properly (and the rest of the modifier stack) in the course.</p>
+  <a href="#" id="ctaLink">Start the Blender Environments course →</a>
+</div>
+
+<p class="footer-note">A taste of GameDev.tv's Blender Environments course.</p>
+
+<script>
+(() => {
+  const cv = document.getElementById('cv');
+  const ctx = cv.getContext('2d');
+  const widthEl = document.getElementById('width');
+  const segsEl = document.getElementById('segs');
+  const profileEl = document.getElementById('profile');
+  const widthVal = document.getElementById('widthVal');
+  const segsVal = document.getElementById('segsVal');
+  const profileVal = document.getElementById('profileVal');
+  const legendStat = document.getElementById('legendStat');
+  const hintStat = document.getElementById('hintStat');
+  const hilightBtn = document.getElementById('hilight');
+  const resetBtn = document.getElementById('reset');
+  const presets = document.querySelectorAll('.preset-row .btn');
+
+  function fitCanvas() {
+    const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+    cv.width = Math.round(cv.clientWidth * dpr);
+    cv.height = Math.round(cv.clientHeight * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  fitCanvas();
+  window.addEventListener('resize', () => { fitCanvas(); draw(); });
+
+  // Brand palette
+  const FACE_TOP   = '#3BEA93'; // bright Blender green
+  const FACE_FRONT = '#0E9F66'; // mid green
+  const FACE_RIGHT = '#066B45'; // dark green
+  const SPEC       = '#FBF7EA'; // ivory highlight
+  const GROUND     = 'rgba(0,0,0,0.55)';
+
+  const state = {
+    width: 0,
+    segs: 1,
+    profile: 0.5,
+    highlight: true,
+  };
+
+  // ---- 3D math (just enough for a cube) ----
+  // Axes: x right, y up, z toward viewer
+  // Isometric-ish projection
+  function project(p, cx, cy, scale) {
+    // rotate around Y then X
+    const ay = -0.55, ax = 0.45;
+    const cy_ = Math.cos(ay), sy_ = Math.sin(ay);
+    const cx_ = Math.cos(ax), sx_ = Math.sin(ax);
+    // Y-rotate
+    let x1 = p.x * cy_ + p.z * sy_;
+    let y1 = p.y;
+    let z1 = -p.x * sy_ + p.z * cy_;
+    // X-rotate
+    let x2 = x1;
+    let y2 = y1 * cx_ - z1 * sx_;
+    let z2 = y1 * sx_ + z1 * cx_;
+    return { x: cx + x2 * scale, y: cy - y2 * scale, z: z2 };
+  }
+
+  // Light direction (world space), normalized
+  const LIGHT = norm({ x: -0.4, y: 0.8, z: 0.6 });
+
+  function norm(v) {
+    const m = Math.hypot(v.x, v.y, v.z) || 1;
+    return { x: v.x / m, y: v.y / m, z: v.z / m };
+  }
+  function dot(a, b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
+  function add(a, b) { return { x: a.x + b.x, y: a.y + b.y, z: a.z + b.z }; }
+  function scale(v, s) { return { x: v.x * s, y: v.y * s, z: v.z * s }; }
+  function sub(a, b) { return { x: a.x - b.x, y: a.y - b.y, z: a.z - b.z }; }
+  function cross(a, b) {
+    return {
+      x: a.y * b.z - a.z * b.y,
+      y: a.z * b.x - a.x * b.z,
+      z: a.x * b.y - a.y * b.x,
+    };
+  }
+
+  // Shade a color by lambert + optional specular highlight band on bevel surfaces.
+  function shade(baseHex, normal, isBevel) {
+    const l = Math.max(0, dot(normal, LIGHT));
+    // Ambient + diffuse
+    const a = 0.30;
+    const diff = a + (1 - a) * l;
+    // Specular: tight cosine power, only on bevels and only when highlight enabled
+    let spec = 0;
+    if (isBevel && state.highlight) {
+      const reflect = norm({
+        x: 2 * l * normal.x - LIGHT.x,
+        y: 2 * l * normal.y - LIGHT.y,
+        z: 2 * l * normal.z - LIGHT.z,
+      });
+      const view = { x: 0, y: 0, z: 1 };
+      const sp = Math.max(0, dot(reflect, view));
+      spec = Math.pow(sp, 18) * 0.95;
+    }
+    const rgb = hexToRgb(baseHex);
+    const r = Math.min(255, rgb.r * diff + 255 * spec);
+    const g = Math.min(255, rgb.g * diff + 255 * spec);
+    const b = Math.min(255, rgb.b * diff + 255 * spec);
+    return `rgb(${r | 0},${g | 0},${b | 0})`;
+  }
+
+  function hexToRgb(hex) {
+    const h = hex.replace('#', '');
+    return {
+      r: parseInt(h.substring(0, 2), 16),
+      g: parseInt(h.substring(2, 4), 16),
+      b: parseInt(h.substring(4, 6), 16),
+    };
+  }
+
+  // Build geometry for a beveled cube.
+  // We treat the cube as 6 faces, each shrunk inward by `w` (the bevel width),
+  // then for every original edge we generate a strip of N segment quads
+  // bridging the two adjacent shrunken faces. The strip orientation interpolates
+  // between the two adjacent face normals, with a profile curve.
+  function buildCube() {
+    const w = state.width;       // 0..0.5
+    const segs = state.segs;     // 1..10
+    const profile = state.profile;
+    const s = 1; // half-size
+
+    // Six face definitions: center, normal, u-axis, v-axis (face-local basis), base color
+    const faces = [
+      { n: { x: 0,  y: 1,  z: 0 }, u: { x: 1, y: 0, z: 0 }, v: { x: 0, y: 0, z: -1 }, c: FACE_TOP   }, // top   +Y
+      { n: { x: 0,  y: -1, z: 0 }, u: { x: 1, y: 0, z: 0 }, v: { x: 0, y: 0, z: 1  }, c: FACE_RIGHT }, // bot   -Y
+      { n: { x: 0,  y: 0,  z: 1 }, u: { x: 1, y: 0, z: 0 }, v: { x: 0, y: 1, z: 0  }, c: FACE_FRONT }, // front +Z
+      { n: { x: 0,  y: 0,  z: -1}, u: { x: -1,y: 0, z: 0 }, v: { x: 0, y: 1, z: 0  }, c: FACE_FRONT }, // back  -Z
+      { n: { x: 1,  y: 0,  z: 0 }, u: { x: 0, y: 0, z: -1}, v: { x: 0, y: 1, z: 0  }, c: FACE_RIGHT }, // right +X
+      { n: { x: -1, y: 0,  z: 0 }, u: { x: 0, y: 0, z: 1 }, v: { x: 0, y: 1, z: 0  }, c: FACE_RIGHT }, // left  -X
+    ];
+
+    const polys = [];
+
+    // Inset face quads: each face's four corners pulled inward along u and v by w.
+    // Face center sits at +normal*s, corners at center ± (s-w)*u ± (s-w)*v.
+    faces.forEach(f => {
+      const center = scale(f.n, s);
+      const ext = s - w;
+      const c00 = add(add(center, scale(f.u, -ext)), scale(f.v, -ext));
+      const c10 = add(add(center, scale(f.u,  ext)), scale(f.v, -ext));
+      const c11 = add(add(center, scale(f.u,  ext)), scale(f.v,  ext));
+      const c01 = add(add(center, scale(f.u, -ext)), scale(f.v,  ext));
+      polys.push({ verts: [c00, c10, c11, c01], normal: f.n, base: f.c, isBevel: false });
+    });
+
+    if (w > 0.001) {
+      // 12 cube edges. Each edge has two adjacent faces.
+      // Define edges by the two face indices and the shared edge in local coords.
+      // We'll iterate all face pairs, find shared edges by matching corners of original cube.
+      // Easier: hardcode 12 edges with their two adjacent face indices and direction.
+      const ext = s - w;
+      // Each edge: two face indices (a, b); along the edge from p0 to p1 in original cube.
+      // For edge between face A (normal nA) and face B (normal nB), the edge runs
+      // along the third axis (perpendicular to both normals).
+      const edges = [];
+      for (let a = 0; a < 6; a++) {
+        for (let b = a + 1; b < 6; b++) {
+          const nA = faces[a].n, nB = faces[b].n;
+          // skip opposite faces
+          if (nA.x === -nB.x && nA.y === -nB.y && nA.z === -nB.z) continue;
+          // direction along edge
+          const dir = cross(nA, nB);
+          edges.push({ a, b, dir });
+        }
+      }
+
+      edges.forEach(e => {
+        const fA = faces[e.a];
+        const fB = faces[e.b];
+        // Two endpoints of edge strip on face A side (offset inward from A's outer rim
+        // by w along the axis pointing toward face B).
+        // Outer corner on face A's plane near face B: center of A + (s)*nA + (s-w)*(toward B)
+        // Simpler: pA = s*nA + (s-w)*nB + t*(dir), where t spans ±(s-w)
+        // pB = (s-w)*nA + s*nB + t*(dir)
+        const dir = e.dir;
+        const ts = [-(s - w), (s - w)]; // along edge
+
+        // For each segment k = 0..segs, build a ring vertex between pA and pB.
+        // Interpolate angle from face A's plane to face B's plane around the edge.
+        // We can parametrize: point(theta) = corner + radius * (cos(theta)*tA + sin(theta)*tB)
+        // where corner is the inner corner: (s - w)*nA + (s - w)*nB + t*dir
+        // tA = nA (direction away from face B side), actually face A normal points outward
+        // Radius scales with profile.
+        // We'll compute by lerping between pA and pB along an arc, with profile bending the arc.
+
+        const ringsA = []; // [seg+1] for t=-
+        const ringsB = []; // [seg+1] for t=+
+        for (let side = 0; side < 2; side++) {
+          const t = ts[side];
+          const along = scale(dir, t);
+          const cornerInner = add(add(scale(fA.n, s - w), scale(fB.n, s - w)), along);
+          const pA = add(add(scale(fA.n, s), scale(fB.n, s - w)), along);
+          const pB = add(add(scale(fA.n, s - w), scale(fB.n, s)), along);
+
+          // Arc params: from pA toward pB around cornerInner, with profile control.
+          // Vector from corner to pA = w*nA. Vector from corner to pB = w*nB.
+          const ring = [];
+          for (let k = 0; k <= state.segs; k++) {
+            const u = k / state.segs;
+            // angle 0..pi/2
+            const ang = u * Math.PI * 0.5;
+            // profile: 0=concave (pull inward), 0.5=circle, 1=convex (push outward).
+            // Achieve by blending between linear chord (concave-ish) and arc bulge.
+            const ca = Math.cos(ang);
+            const sa = Math.sin(ang);
+            // base circular point
+            const circ = add(cornerInner, add(scale(fA.n, w * ca), scale(fB.n, w * sa)));
+            // chord point (straight line pA -> pB)
+            const chord = add(scale(pA, 1 - u), scale(pB, u));
+            // profile 0 = chord-inward (concave), 0.5 = circle, 1.0 = pushed outward (convex)
+            // blend = lerp from "behind-chord" to "circle" to "in-front-of-circle"
+            const bulge = sub(circ, chord);
+            const factor = (profile - 0.5) * 2 + 1; // 0..2
+            const pt = add(chord, scale(bulge, factor));
+            ring.push(pt);
+          }
+          if (side === 0) ringsA.push(...ring); else ringsB.push(...ring);
+        }
+
+        // Build segs quads bridging ringsA[k] - ringsA[k+1] - ringsB[k+1] - ringsB[k]
+        for (let k = 0; k < state.segs; k++) {
+          const p0 = ringsA[k];
+          const p1 = ringsA[k + 1];
+          const p2 = ringsB[k + 1];
+          const p3 = ringsB[k];
+          // Normal: lerp face A normal to face B normal by (k+0.5)/segs
+          const uMid = (k + 0.5) / state.segs;
+          const ang = uMid * Math.PI * 0.5;
+          const n = norm({
+            x: fA.n.x * Math.cos(ang) + fB.n.x * Math.sin(ang),
+            y: fA.n.y * Math.cos(ang) + fB.n.y * Math.sin(ang),
+            z: fA.n.z * Math.cos(ang) + fB.n.z * Math.sin(ang),
+          });
+          // Pick base color: blend between adjacent face colors so the bevel band
+          // visually transitions across the edge.
+          const cA = hexToRgb(fA.c), cB = hexToRgb(fB.c);
+          const mix = uMid;
+          const baseR = cA.r * (1 - mix) + cB.r * mix;
+          const baseG = cA.g * (1 - mix) + cB.g * mix;
+          const baseB = cA.b * (1 - mix) + cB.b * mix;
+          const baseHex = '#' +
+            ((baseR | 0).toString(16).padStart(2, '0')) +
+            ((baseG | 0).toString(16).padStart(2, '0')) +
+            ((baseB | 0).toString(16).padStart(2, '0'));
+          polys.push({ verts: [p0, p1, p2, p3], normal: n, base: baseHex, isBevel: true });
+        }
+      });
+
+      // TODO: corner caps would be ideal but for the demo the edge strips alone
+      // sell the effect well enough at this resolution.
+    }
+
+    return polys;
+  }
+
+  function draw() {
+    const w = cv.clientWidth;
+    const h = cv.clientHeight;
+    ctx.clearRect(0, 0, w, h);
+
+    // Backdrop gradient (no blur, just flat bands)
+    ctx.fillStyle = '#1a1d28';
+    ctx.fillRect(0, 0, w, h * 0.7);
+    ctx.fillStyle = '#0f1118';
+    ctx.fillRect(0, h * 0.7, w, h * 0.3);
+
+    // Ground line
+    ctx.strokeStyle = 'rgba(59,234,147,0.25)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, h * 0.7);
+    ctx.lineTo(w, h * 0.7);
+    ctx.stroke();
+
+    const cx = w / 2;
+    const cy = h * 0.52;
+    const scale_ = Math.min(w, h) * 0.32;
+
+    const polys = buildCube();
+
+    // Project and back-face cull
+    const draws = [];
+    polys.forEach(p => {
+      // back-face cull: skip if normal points away from camera
+      const camFacing = dot(p.normal, { x: 0, y: 0, z: 1 });
+      // Need to transform normal by same rotation as projection. Easier: project all verts
+      // then compute screen-space normal via cross product of edges.
+      const projected = p.verts.map(v => project(v, cx, cy, scale_));
+      // 2D cross product for facing
+      const e1x = projected[1].x - projected[0].x;
+      const e1y = projected[1].y - projected[0].y;
+      const e2x = projected[2].x - projected[0].x;
+      const e2y = projected[2].y - projected[0].y;
+      const facing = e1x * e2y - e1y * e2x;
+      if (facing >= 0) return; // back-facing in screen space
+      // average z for painter sort
+      const avgZ = projected.reduce((s, v) => s + v.z, 0) / projected.length;
+      // Also rotate the normal so shading matches the view.
+      // For simplicity, use world-space normal for lighting (light is world-space too).
+      draws.push({
+        pts: projected,
+        normal: p.normal,
+        base: p.base,
+        isBevel: p.isBevel,
+        z: avgZ,
+      });
+    });
+
+    // Painter sort: farther z first
+    draws.sort((a, b) => a.z - b.z);
+
+    // Shadow underneath (hard offset, no blur)
+    ctx.fillStyle = GROUND;
+    ctx.beginPath();
+    ctx.ellipse(cx + 14, cy + scale_ * 1.05, scale_ * 1.15, scale_ * 0.18, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Render polys
+    draws.forEach(d => {
+      const fill = shade(d.base, d.normal, d.isBevel);
+      ctx.fillStyle = fill;
+      ctx.strokeStyle = fill;
+      ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(d.pts[0].x, d.pts[0].y);
+      for (let i = 1; i < d.pts.length; i++) ctx.lineTo(d.pts[i].x, d.pts[i].y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke(); // hairline along same color hides seams between bevel strips
+    });
+  }
+
+  function updateLegend() {
+    legendStat.textContent =
+      `width ${state.width.toFixed(2)} · segs ${state.segs} · profile ${state.profile.toFixed(2)}`;
+  }
+
+  function bind(el, valEl, prop, fmt, parser = parseFloat) {
+    const apply = () => {
+      state[prop] = parser(el.value);
+      valEl.textContent = fmt(state[prop]);
+      updateLegend();
+      draw();
+    };
+    el.addEventListener('input', apply);
+    apply();
+  }
+  bind(widthEl, widthVal, 'width', v => v.toFixed(2));
+  bind(segsEl, segsVal, 'segs', v => `${v}`, v => parseInt(v, 10));
+  bind(profileEl, profileVal, 'profile', v => v.toFixed(2));
+
+  hilightBtn.addEventListener('click', () => {
+    state.highlight = !state.highlight;
+    hilightBtn.classList.toggle('on', state.highlight);
+    hilightBtn.textContent = state.highlight ? '✨ Highlight on bevels' : '○ Highlight off';
+    draw();
+  });
+
+  const PRESETS = {
+    sharp:   { width: 0.0,  segs: 1,  profile: 0.5 },
+    chamfer: { width: 0.05, segs: 1,  profile: 0.5 },
+    rounded: { width: 0.1,  segs: 4,  profile: 0.5 },
+    soft:    { width: 0.2,  segs: 8,  profile: 0.5 },
+  };
+  function applyPreset(name) {
+    const p = PRESETS[name];
+    if (!p) return;
+    widthEl.value = p.width;
+    segsEl.value = p.segs;
+    profileEl.value = p.profile;
+    [widthEl, segsEl, profileEl].forEach(e => e.dispatchEvent(new Event('input')));
+    hintStat.textContent = `preset: ${name}`;
+  }
+  presets.forEach(b => b.addEventListener('click', () => applyPreset(b.dataset.preset)));
+
+  resetBtn.addEventListener('click', () => applyPreset('sharp'));
+
+  draw();
+})();
+</script>
+</body>
+</html>

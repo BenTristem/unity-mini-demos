@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Feel a PBR Material — an Unreal lighting toy</title>
+<meta name="description" content="Slide metallic and roughness. Tint the base color. Watch a sphere change from plastic to chrome to gold." />
+<link rel="stylesheet" href="brand.css" />
+<style>
+  body { --c-engine: var(--c-unreal); }
+  canvas { height: 320px; }
+  .preset-row .btn { font-size: 12.5px; padding: 9px 6px; }
+  .chip-row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip { flex: 1 1 auto; height: 34px; border-radius: 8px; border: 2px solid var(--line); cursor: pointer; padding: 0; -webkit-tap-highlight-color: transparent; }
+  .chip.active { border-color: var(--ivory); transform: translate(2px, 0); }
+</style>
+</head>
+<body>
+
+<header class="brand-bar">
+  <a class="brand-mark" href="https://www.gamedev.tv">GameDev<span class="dot">.tv</span></a>
+  <span class="brand-tag">Get Good at Game Dev</span>
+</header>
+
+<h1>Feel a <code style="color:var(--c-engine)">PBR material</code></h1>
+<p class="sub">Unreal's Material Editor has dozens of inputs but only three really change how a surface <em>looks</em>. Learn these and you'll stop fighting the renderer.</p>
+
+<div class="stage">
+  <canvas id="cv" width="800" height="640"></canvas>
+  <div class="legend">
+    <span id="presetStat">custom</span>
+    <span id="numStat">M 0.00 · R 0.50 · RGB (200,40,40)</span>
+  </div>
+</div>
+
+<div class="controls">
+  <div class="preset-row">
+    <button class="btn" data-preset="chrome">Chrome</button>
+    <button class="btn" data-preset="plastic">Plastic</button>
+    <button class="btn" data-preset="rusted">Rusted steel</button>
+    <button class="btn" data-preset="velvet">Velvet</button>
+    <button class="btn" data-preset="gold">Polished gold</button>
+  </div>
+
+  <div class="slider-block">
+    <div class="label-row"><strong>Metallic</strong><span class="val" id="metVal">0.00</span></div>
+    <input id="met" type="range" min="0" max="1" step="0.01" value="0" />
+  </div>
+  <div class="slider-block">
+    <div class="label-row"><strong>Roughness</strong><span class="val" id="rouVal">0.50</span></div>
+    <input id="rou" type="range" min="0" max="1" step="0.01" value="0.5" />
+  </div>
+  <div class="slider-block">
+    <div class="label-row"><strong>Base Color</strong><span class="val" id="colVal">(200,40,40)</span></div>
+    <div class="chip-row" id="chips">
+      <button class="chip" data-r="200" data-g="40"  data-b="40"  style="background:#c82828"></button>
+      <button class="chip" data-r="230" data-g="120" data-b="40"  style="background:#e67828"></button>
+      <button class="chip" data-r="240" data-g="210" data-b="80"  style="background:#f0d250"></button>
+      <button class="chip" data-r="80"  data-g="180" data-b="100" style="background:#50b464"></button>
+      <button class="chip" data-r="70"  data-g="130" data-b="220" style="background:#4682dc"></button>
+      <button class="chip" data-r="160" data-g="90"  data-b="200" style="background:#a05ac8"></button>
+      <button class="chip" data-r="220" data-g="220" data-b="220" style="background:#dcdcdc"></button>
+      <button class="chip" data-r="40"  data-g="40"  data-b="40"  style="background:#282828"></button>
+    </div>
+  </div>
+</div>
+
+<div class="takeaway">
+  <h3>What each knob does</h3>
+  <ul>
+    <li><code>Metallic</code> is binary in real life. 0 = dielectric (wood, plastic, skin). 1 = pure metal. In-between values mostly mean dirt or a layered material.</li>
+    <li><code>Roughness</code> is the everyday workhorse. Crank it up for chalk and felt; drop it for mirrors and chrome.</li>
+    <li><code>Base Color</code> on a metal <em>is</em> the reflection tint. Gold's yellow comes from its metalness, not a coat of paint.</li>
+    <li><code>Specular</code>? Leave it alone for 99% of materials. It's a holdover that confuses more than it helps.</li>
+  </ul>
+</div>
+
+<details class="code">
+  <summary><span>Show me the Unreal C++</span></summary>
+<pre>UMaterialInstanceDynamic* DynMat = UMaterialInstanceDynamic::Create(BaseMaterial, <span class="k">this</span>);
+StaticMeshComp-&gt;SetMaterial(<span class="s">0</span>, DynMat);
+
+DynMat-&gt;SetScalarParameterValue(TEXT(<span class="s">"Metallic"</span>),  <span class="s">0.0f</span>);
+DynMat-&gt;SetScalarParameterValue(TEXT(<span class="s">"Roughness"</span>), <span class="s">0.4f</span>);
+DynMat-&gt;SetVectorParameterValue(TEXT(<span class="s">"BaseColor"</span>),
+    FLinearColor(<span class="s">0.85f</span>, <span class="s">0.15f</span>, <span class="s">0.12f</span>)); <span class="c">// a juicy red plastic</span></pre>
+</details>
+
+<div class="cta">
+  <p>PBR is a few sliders that make every surface in your game stop looking like 2010.<br/>Learn the full Material Editor in the course.</p>
+  <a href="#" id="ctaLink">Start the Unreal Materials course →</a>
+</div>
+
+<p class="footer-note">A taste of GameDev.tv's Unreal Materials course.</p>
+
+<script>
+(() => {
+  const cv = document.getElementById('cv');
+  const ctx = cv.getContext('2d');
+  const metEl = document.getElementById('met');
+  const rouEl = document.getElementById('rou');
+  const metVal = document.getElementById('metVal');
+  const rouVal = document.getElementById('rouVal');
+  const colVal = document.getElementById('colVal');
+  const presetStat = document.getElementById('presetStat');
+  const numStat = document.getElementById('numStat');
+  const chips = document.querySelectorAll('#chips .chip');
+  const presets = document.querySelectorAll('.preset-row .btn');
+
+  function fitCanvas() {
+    const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+    const cssW = cv.clientWidth;
+    const cssH = cv.clientHeight;
+    cv.width = Math.round(cssW * dpr);
+    cv.height = Math.round(cssH * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  fitCanvas();
+  window.addEventListener('resize', () => { fitCanvas(); draw(); });
+
+  const state = {
+    metallic: 0,
+    roughness: 0.5,
+    r: 200, g: 40, b: 40,
+    presetName: 'custom',
+  };
+
+  const PRESETS = {
+    chrome:  { metallic: 1.0, roughness: 0.05, r: 220, g: 220, b: 220, label: 'Chrome' },
+    plastic: { metallic: 0.0, roughness: 0.40, r: 220, g: 40,  b: 40,  label: 'Plastic' },
+    rusted:  { metallic: 0.6, roughness: 0.80, r: 150, g: 80,  b: 50,  label: 'Rusted steel' },
+    velvet:  { metallic: 0.0, roughness: 1.00, r: 35,  g: 50,  b: 130, label: 'Velvet' },
+    gold:    { metallic: 1.0, roughness: 0.15, r: 240, g: 190, b: 90,  label: 'Polished gold' },
+  };
+
+  // -------- PBR-ish renderer --------
+  // We render the sphere by stepping through pixels in a bounding box,
+  // computing normal from sphere geometry, then a two-light shading model.
+  function clamp01(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
+  function mix(a, b, t) { return a + (b - a) * t; }
+
+  function normalize3(x, y, z) {
+    const m = Math.hypot(x, y, z) || 1;
+    return [x / m, y / m, z / m];
+  }
+
+  // Key light from upper-left, rim light from upper-right.
+  const KEY = normalize3(-0.55, 0.65, 0.85);
+  const RIM = normalize3( 0.70, 0.55, 0.45);
+  const V   = [0, 0, 1]; // view direction (camera looking down -Z)
+
+  function reflect(L, N) {
+    const d = L[0]*N[0] + L[1]*N[1] + L[2]*N[2];
+    return [2*d*N[0] - L[0], 2*d*N[1] - L[1], 2*d*N[2] - L[2]];
+  }
+
+  // Specular intensity using a Blinn-Phong-style lobe whose exponent
+  // is driven by roughness. Tight & bright when smooth, soft & dim when rough.
+  function specLobe(N, L, roughness) {
+    // Halfway vector
+    const Hx = L[0] + V[0], Hy = L[1] + V[1], Hz = L[2] + V[2];
+    const Hn = normalize3(Hx, Hy, Hz);
+    const NdotH = Math.max(0, N[0]*Hn[0] + N[1]*Hn[1] + N[2]*Hn[2]);
+    // Exponent: smooth -> ~1500, rough -> ~2. Felt this curve nicely.
+    const a = clamp01(roughness);
+    const shininess = Math.pow(2, mix(11, 1, a)); // 2..2048
+    // Energy-ish normalization so the lobe stays visible across the range
+    const norm = (shininess + 2) / (8 * Math.PI);
+    return Math.pow(NdotH, shininess) * norm;
+  }
+
+  function shadePixel(nx, ny, nz, metallic, roughness, cr, cg, cb) {
+    const N = [nx, ny, nz];
+
+    // Lambertian diffuse from key light
+    const NdotL_key = Math.max(0, N[0]*KEY[0] + N[1]*KEY[1] + N[2]*KEY[2]);
+    const NdotL_rim = Math.max(0, N[0]*RIM[0] + N[1]*RIM[1] + N[2]*RIM[2]);
+
+    // Ambient + sky-ish hemisphere fill
+    const upBias = clamp01((ny + 1) * 0.5);
+    const ambR = mix(0.04, 0.08, upBias);
+    const ambG = mix(0.05, 0.10, upBias);
+    const ambB = mix(0.07, 0.14, upBias);
+
+    // Diffuse term (suppressed when metallic).
+    const diffuseScale = (1 - metallic);
+    const lightR = ambR + NdotL_key * 1.05 + NdotL_rim * 0.25;
+    const lightG = ambG + NdotL_key * 1.05 + NdotL_rim * 0.25;
+    const lightB = ambB + NdotL_key * 1.05 + NdotL_rim * 0.30;
+
+    let dR = diffuseScale * lightR * cr;
+    let dG = diffuseScale * lightG * cg;
+    let dB = diffuseScale * lightB * cb;
+
+    // Specular: lobes from both lights.
+    const sKey = specLobe(N, KEY, roughness);
+    const sRim = specLobe(N, RIM, roughness) * 0.55;
+    let spec = sKey + sRim;
+    // Intensity scaled by metallic + (1 - roughness): mirrors pop, felt doesn't.
+    const specStrength = (metallic * 0.85 + 0.15) * (1 - roughness * 0.85);
+    spec *= specStrength * 1.7;
+
+    // Tint specular by base color when metallic; white-ish for dielectrics.
+    // Dielectric F0 ~ 0.04 (small white reflection).
+    const tintR = mix(255 * 0.18, cr, metallic);
+    const tintG = mix(255 * 0.18, cg, metallic);
+    const tintB = mix(255 * 0.18, cb, metallic);
+
+    let sR = spec * tintR;
+    let sG = spec * tintG;
+    let sB = spec * tintB;
+
+    // Fresnel-ish rim (stronger at glancing angles, more on dielectrics)
+    const NdotV = Math.max(0, N[2]);
+    const fres = Math.pow(1 - NdotV, 4) * (1 - roughness) * (1 - metallic) * 0.4;
+    sR += fres * 255; sG += fres * 255; sB += fres * 255;
+
+    // Combine
+    let outR = dR + sR;
+    let outG = dG + sG;
+    let outB = dB + sB;
+
+    // Soft tonemap so highlights don't blow out into pure white
+    outR = 255 * (outR / 255) / (1 + outR / 380);
+    outG = 255 * (outG / 255) / (1 + outG / 380);
+    outB = 255 * (outB / 255) / (1 + outB / 380);
+
+    return [outR, outG, outB];
+  }
+
+  function draw() {
+    const w = cv.clientWidth;
+    const h = cv.clientHeight;
+    ctx.clearRect(0, 0, w, h);
+
+    // Soft floor band so the sphere doesn't float in void
+    const floorY = h * 0.82;
+    ctx.fillStyle = '#0a1f29';
+    ctx.fillRect(0, floorY, w, h - floorY);
+    ctx.strokeStyle = 'rgba(218,90,97,0.4)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, floorY);
+    ctx.lineTo(w, floorY);
+    ctx.stroke();
+
+    // Sphere geometry
+    const cx = w / 2;
+    const cy = h * 0.46;
+    const radius = Math.min(w, h) * 0.34;
+
+    // Hard offset shadow (no blur) — an ellipse plate under the sphere
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.beginPath();
+    ctx.ellipse(cx + 8, floorY - 4, radius * 0.85, radius * 0.18, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    const metallic = state.metallic;
+    const roughness = state.roughness;
+    const cr = state.r, cg = state.g, cb = state.b;
+
+    // Render the sphere into an ImageData buffer
+    const x0 = Math.max(0, Math.floor(cx - radius - 1));
+    const x1 = Math.min(w, Math.ceil(cx + radius + 1));
+    const y0 = Math.max(0, Math.floor(cy - radius - 1));
+    const y1 = Math.min(h, Math.ceil(cy + radius + 1));
+    const bw = x1 - x0;
+    const bh = y1 - y0;
+    if (bw <= 0 || bh <= 0) return;
+
+    const img = ctx.createImageData(bw, bh);
+    const data = img.data;
+    const r2 = radius * radius;
+
+    for (let py = 0; py < bh; py++) {
+      const fy = (py + y0) - cy;
+      for (let px = 0; px < bw; px++) {
+        const fx = (px + x0) - cx;
+        const d2 = fx * fx + fy * fy;
+        const idx = (py * bw + px) * 4;
+        if (d2 > r2) {
+          data[idx + 3] = 0;
+          continue;
+        }
+        // Sphere normal from screen position
+        const nxRaw = fx / radius;
+        const nyRaw = -fy / radius; // canvas Y grows down; flip so up is +Y
+        const nzSq = 1 - nxRaw * nxRaw - nyRaw * nyRaw;
+        const nz = Math.sqrt(Math.max(0, nzSq));
+        const [oR, oG, oB] = shadePixel(nxRaw, nyRaw, nz, metallic, roughness, cr, cg, cb);
+
+        // Subtle edge antialias against the bounds
+        const dist = Math.sqrt(d2);
+        const edge = clamp01((radius - dist));
+        const alpha = edge >= 1 ? 255 : Math.round(edge * 255);
+
+        data[idx]     = clamp01(oR / 255) * 255;
+        data[idx + 1] = clamp01(oG / 255) * 255;
+        data[idx + 2] = clamp01(oB / 255) * 255;
+        data[idx + 3] = alpha;
+      }
+    }
+    ctx.putImageData(img, x0, y0);
+
+    // Label flick on the floor: small text indicating light direction
+    ctx.fillStyle = 'rgba(136,168,176,0.6)';
+    ctx.font = '600 11px Poppins, system-ui, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('key light ↘', 10, 18);
+    ctx.textAlign = 'right';
+    ctx.fillText('↙ rim light', w - 10, 18);
+  }
+
+  // -------- UI plumbing --------
+  function syncReadout() {
+    metVal.textContent = state.metallic.toFixed(2);
+    rouVal.textContent = state.roughness.toFixed(2);
+    colVal.textContent = `(${state.r},${state.g},${state.b})`;
+    presetStat.textContent = state.presetName;
+    numStat.textContent = `M ${state.metallic.toFixed(2)} · R ${state.roughness.toFixed(2)} · RGB (${state.r},${state.g},${state.b})`;
+    // Highlight matching chip
+    chips.forEach(c => {
+      const cr = +c.dataset.r, cg = +c.dataset.g, cb = +c.dataset.b;
+      c.classList.toggle('active', cr === state.r && cg === state.g && cb === state.b);
+    });
+  }
+
+  function setCustom() {
+    state.presetName = 'custom';
+  }
+
+  metEl.addEventListener('input', () => {
+    state.metallic = +metEl.value;
+    setCustom();
+    syncReadout();
+    draw();
+  });
+  rouEl.addEventListener('input', () => {
+    state.roughness = +rouEl.value;
+    setCustom();
+    syncReadout();
+    draw();
+  });
+
+  chips.forEach(chip => chip.addEventListener('click', () => {
+    state.r = +chip.dataset.r;
+    state.g = +chip.dataset.g;
+    state.b = +chip.dataset.b;
+    setCustom();
+    syncReadout();
+    draw();
+  }));
+
+  presets.forEach(b => b.addEventListener('click', () => {
+    const p = PRESETS[b.dataset.preset];
+    if (!p) return;
+    state.metallic = p.metallic;
+    state.roughness = p.roughness;
+    state.r = p.r; state.g = p.g; state.b = p.b;
+    state.presetName = p.label;
+    metEl.value = p.metallic;
+    rouEl.value = p.roughness;
+    syncReadout();
+    draw();
+  }));
+
+  // Initial state: plastic-red-ish
+  state.metallic = 0; state.roughness = 0.5;
+  state.r = 200; state.g = 40; state.b = 40;
+  metEl.value = 0; rouEl.value = 0.5;
+  syncReadout();
+  draw();
+})();
+</script>
+</body>
+</html>
